@@ -7,80 +7,13 @@ from adafruit_debouncer import Debouncer
 
 import usb_hid
 from adafruit_hid.keyboard import Keyboard
-from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
 from adafruit_hid.keycode import Keycode
 
 from adafruit_hid.consumer_control import ConsumerControl
 from adafruit_hid.consumer_control_code import ConsumerControlCode
 
 from adafruit_hid.mouse import Mouse
-
-class KeyChord:
-    def __init__(self, match, result, releasekey = True):
-        '''
-        match: tuple of pins (0, 1)
-        result: key Keycode.C
-        '''
-        self.match = sorted(match)
-        self.result = result
-        self.releasekey = releasekey
-
-    def isAMatch(self, chord):
-        return self.match == chord
-
-    def playResult(self):
-        for key in self.result:
-            keyboard.press(key)  # "Press"...
-        if self.releasekey:
-            keyboard.release_all()  # ..."Release"!
-
-class MultiChord:
-    def __init__(self, match, result):
-        '''
-        match: tuple of pins (0, 1)
-        result: code ConsumerControlCode.BRIGHTNESS_DECREMENT
-        '''
-        self.match = sorted(match)
-        self.result = result
-
-    def isAMatch(self, chord):
-        return self.match == chord
-
-    def playResult(self):
-        for code in self.result:
-            consumer_control.press(code)  # "Press"...
-        consumer_control.release()  # ..."Release"!
-
-class MouseChord:
-    def __init__(self, match, result):
-        '''
-        match: tuple of pins (0, 1)
-        result: code Mouse.LEFT_BUTTON
-        '''
-        self.match = sorted(match)
-        self.result = result
-
-    def isAMatch(self, chord):
-        return self.match == chord
-
-    def playResult(self):
-        for code in self.result:
-            mouse.click(code)  # "Press"...
-
-class MouseMove:
-    def __init__(self, match, result):
-        '''
-        match: tuple of pins (0, 1)
-        result: movement (x=-100, y=0, wheel=0)
-        '''
-        self.match = sorted(match)
-        self.result = result
-
-    def isAMatch(self, chord):
-        return self.match == chord
-
-    def playResult(self):
-        mouse.move(x=self.result[0], y=self.result[1], wheel=self.result[2])  # "Move"...
+from chords import KeyChord, MouseChord, MouseMove, MultiChord
 
 print("Defining key mapping...")
 keypress_pins = [
@@ -88,137 +21,162 @@ keypress_pins = [
     board.GP21,  board.GP20,  board.GP19, board.GP18,
 ]
 
+# The keyboard object!
+time.sleep(1)  # Sleep for a bit to avoid a race condition on some systems
+kb = Keyboard(usb_hid.devices)
+cc = ConsumerControl(usb_hid.devices)
+m = Mouse(usb_hid.devices)
+
+# The Artsey buttons are layed out like so:
+# +------+---+---+---+---+
+# |  RP  | 0 | 1 | 2 | 3 |
+# |  PI  +---+---+---+---+
+# |  CO  | 4 | 5 | 6 | 7 |
+# +------+---+---+---+---+
+
+# Define new chords by adding a new line to any layer list like so:
+# ChordType(inputType, (pin, ...), (result, ...)),
+# where ChordType = KeyChord for normal keyboard buttons, MouseChord for mouse buttons,
+#                   MouseMove for mouse movements and MultiChord for multimedia buttons
+#       inputType = kb (keyboard for KeyChords), cc (consumerControl for MultiChord), m (mouse for mouse stuff)
+#       pin = one or more pins (comma seperated) that make up the chord
+#       result = the result of pressing the chord, Keycode (for keyboard buttons, these can be chained together), 
+#                   ConsumerControlCode (for multimedia buttons, also chainable),
+#                   Mouse (for mouse buttons) or
+#                   h, v, wheel values for mouse movement
+#
+# For example:
+# KeyChord(kb, (0,), (Keycode.A,)),         # Pressing the top left button results in keyboard 'A' button being pressed
+# KeyChord(kb, (0, 1, 2), (Keycode.D,)),    # Pressing the first 3 buttons on the top row results in keyboard button 'D'
+# KeyChord(kb, (2, 6), (Keycode.SHIFT, Keycode.ONE,)),      # This results in '!' by having both SHIFT and the number 1 be pressed
+# MultiChord(cc, (0,), (ConsumerControlCode.PLAY_PAUSE,)),  # Results in multimedia button Play/Pause press
+# MouseChord(m, (0,), (Mouse.LEFT_BUTTON,)),                # Results in the left mouse button being clicked
+# MouseMove(m, (4,), (-20, 0, 0)),             # Moves the mouse 20 pixels to the left. Negative numbers for up/left/scrolldown
+
 chords = [
     # base layer chords
     [
-        KeyChord((0,), (Keycode.A,)),
-        KeyChord((1,), (Keycode.R,)),
-        KeyChord((2,), (Keycode.T,)),
-        KeyChord((3,), (Keycode.S,)),
-        KeyChord((4,), (Keycode.E,)),
-        KeyChord((5,), (Keycode.Y,)),
-        KeyChord((6,), (Keycode.I,)),
-        KeyChord((7,), (Keycode.O,)),
+        KeyChord(kb, (0,), (Keycode.A,)),
+        KeyChord(kb, (1,), (Keycode.R,)),
+        KeyChord(kb, (2,), (Keycode.T,)),
+        KeyChord(kb, (3,), (Keycode.S,)),
+        KeyChord(kb, (4,), (Keycode.E,)),
+        KeyChord(kb, (6,), (Keycode.I,)),
+        KeyChord(kb, (7,), (Keycode.O,)),
+        KeyChord(kb, (5,), (Keycode.Y,)),
 
-        KeyChord((4, 7), (Keycode.B,)),
-        KeyChord((4, 5), (Keycode.C,)),
-        KeyChord((0, 1, 2), (Keycode.D,)),
-        KeyChord((0, 1), (Keycode.F,)),
-        KeyChord((1, 2), (Keycode.G,)),
-        KeyChord((4, 6), (Keycode.H,)),
-        KeyChord((2, 3), (Keycode.J,)),
-        KeyChord((5, 7), (Keycode.K,)),
-        KeyChord((4, 5, 6), (Keycode.L,)),
-        KeyChord((5, 6, 7), (Keycode.M,)),
-        KeyChord((6, 7), (Keycode.N,)),
-        KeyChord((4, 6, 7), (Keycode.P,)),
-        KeyChord((0, 2, 3), (Keycode.Q,)),
-        KeyChord((5, 6), (Keycode.U,)),
-        KeyChord((1, 3), (Keycode.V,)),
-        KeyChord((0, 3), (Keycode.W,)),
-        KeyChord((1, 2, 3), (Keycode.X,)),
-        KeyChord((0, 1, 2, 3), (Keycode.Z,)),
+        KeyChord(kb, (4, 7), (Keycode.B,)),
+        KeyChord(kb, (4, 5), (Keycode.C,)),
+        KeyChord(kb, (0, 1, 2), (Keycode.D,)),
+        KeyChord(kb, (0, 1), (Keycode.F,)),
+        KeyChord(kb, (1, 2), (Keycode.G,)),
+        KeyChord(kb, (4, 6), (Keycode.H,)),
+        KeyChord(kb, (2, 3), (Keycode.J,)),
+        KeyChord(kb, (5, 7), (Keycode.K,)),
+        KeyChord(kb, (4, 5, 6), (Keycode.L,)),
+        KeyChord(kb, (5, 6, 7), (Keycode.M,)),
+        KeyChord(kb, (6, 7), (Keycode.N,)),
+        KeyChord(kb, (4, 6, 7), (Keycode.P,)),
+        KeyChord(kb, (0, 2, 3), (Keycode.Q,)),
+        KeyChord(kb, (5, 6), (Keycode.U,)),
+        KeyChord(kb, (1, 3), (Keycode.V,)),
+        KeyChord(kb, (0, 3), (Keycode.W,)),
+        KeyChord(kb, (1, 2, 3), (Keycode.X,)),
+        KeyChord(kb, (0, 1, 2, 3), (Keycode.Z,)),
 
-        KeyChord((0, 4), (Keycode.ENTER,)),
-        KeyChord((0, 5, 6), (Keycode.QUOTE,)),
-        KeyChord((0, 5), (Keycode.PERIOD,)),
-        KeyChord((0, 6), (Keycode.COMMA,)),
-        KeyChord((0, 7), (Keycode.FORWARD_SLASH,)),
-        KeyChord((2, 6), (Keycode.SHIFT, Keycode.ONE,)),
-        KeyChord((4, 5, 6, 7), (Keycode.SPACE,)),
-        KeyChord((4, 1), (Keycode.BACKSPACE,)),
-        KeyChord((1, 6), (Keycode.DELETE,)),
+        KeyChord(kb, (0, 4), (Keycode.ENTER,)),
+        KeyChord(kb, (0, 5, 6), (Keycode.QUOTE,)),
+        KeyChord(kb, (0, 5), (Keycode.PERIOD,)),
+        KeyChord(kb, (0, 6), (Keycode.COMMA,)),
+        KeyChord(kb, (0, 7), (Keycode.FORWARD_SLASH,)),
+        KeyChord(kb, (2, 6), (Keycode.SHIFT, Keycode.ONE,)),
+        KeyChord(kb, (4, 5, 6, 7), (Keycode.SPACE,)),
+        KeyChord(kb, (4, 1), (Keycode.BACKSPACE,)),
+        KeyChord(kb, (1, 6), (Keycode.DELETE,)),
 
-        KeyChord((0, 1, 7), (Keycode.ESCAPE,)),
-        KeyChord((0, 1, 2, 7), (Keycode.TAB,)),
-        KeyChord((4, 3), (Keycode.CONTROL,), False),
-        KeyChord((5, 3), (Keycode.GUI,), False),
-        KeyChord((6, 3), (Keycode.ALT,), False),
-        KeyChord((4, 1, 2, 3), (Keycode.SHIFT,), False),
-        #KeyChord((1, 5), (Keycode.SHIFT,)), # no idea what this means
-        #KeyChord((0, 5, 6, 7), (Keycode.CAPS_LOCK,)), # doesnt want to work
-        #Chord((1, 2, 5, 6), (Keycode.NO,)),  # no standard us code for bluetooth
+        KeyChord(kb, (0, 1, 7), (Keycode.ESCAPE,)),
+        KeyChord(kb, (0, 1, 2, 7), (Keycode.TAB,)),
+        KeyChord(kb, (4, 3), (Keycode.CONTROL,), False),
+        KeyChord(kb, (5, 3), (Keycode.GUI,), False),
+        KeyChord(kb, (6, 3), (Keycode.ALT,), False),
+        KeyChord(kb, (4, 1, 2, 3), (Keycode.SHIFT,), False),
+        #KeyChord(kb, (1, 5), (Keycode.SHIFT,)), # no idea what this means
+        #KeyChord(kb, (0, 5, 6, 7), (Keycode.CAPS_LOCK,)), # doesnt want to work
+        #KeyChord(kb, (1, 2, 5, 6), (Keycode.NO,)),  # no standard us code for bluetooth
     ],
  
     #parenLayer
     [
-        KeyChord((1,), (Keycode.SHIFT, Keycode.NINE,)),
-        KeyChord((2,), (Keycode.SHIFT, Keycode.ZERO,)),
-        KeyChord((3,), (Keycode.SHIFT, Keycode.LEFT_BRACKET,)),
-        KeyChord((5,), (Keycode.LEFT_BRACKET,)),
-        KeyChord((6,), (Keycode.RIGHT_BRACKET,)),
-        KeyChord((7,), (Keycode.SHIFT, Keycode.RIGHT_BRACKET,)),
+        KeyChord(kb, (1,), (Keycode.SHIFT, Keycode.NINE,)),
+        KeyChord(kb, (2,), (Keycode.SHIFT, Keycode.ZERO,)),
+        KeyChord(kb, (3,), (Keycode.SHIFT, Keycode.LEFT_BRACKET,)),
+        KeyChord(kb, (5,), (Keycode.LEFT_BRACKET,)),
+        KeyChord(kb, (6,), (Keycode.RIGHT_BRACKET,)),
+        KeyChord(kb, (7,), (Keycode.SHIFT, Keycode.RIGHT_BRACKET,)),
     ],
 
     #numberlayer
     [
-        KeyChord((0,), (Keycode.ONE,)),
-        KeyChord((1,), (Keycode.TWO,)),
-        KeyChord((2,), (Keycode.THREE,)),
-        KeyChord((4,), (Keycode.FOUR,)),
-        KeyChord((5,), (Keycode.FIVE,)),
-        KeyChord((6,), (Keycode.SIX,)),
-        KeyChord((0,1), (Keycode.SEVEN,)),
-        KeyChord((1,2), (Keycode.EIGHT,)),
-        KeyChord((4,5), (Keycode.NINE,)),
-        KeyChord((5,6), (Keycode.ZERO,)),
+        KeyChord(kb, (0,), (Keycode.ONE,)),
+        KeyChord(kb, (1,), (Keycode.TWO,)),
+        KeyChord(kb, (2,), (Keycode.THREE,)),
+        KeyChord(kb, (4,), (Keycode.FOUR,)),
+        KeyChord(kb, (5,), (Keycode.FIVE,)),
+        KeyChord(kb, (6,), (Keycode.SIX,)),
+        KeyChord(kb, (0,1), (Keycode.SEVEN,)),
+        KeyChord(kb, (1,2), (Keycode.EIGHT,)),
+        KeyChord(kb, (4,5), (Keycode.NINE,)),
+        KeyChord(kb, (5,6), (Keycode.ZERO,)),
     ],
 
     #symbollayer
     [
-        KeyChord((0,), (Keycode.SHIFT, Keycode.ONE)),
-        KeyChord((1,), (Keycode.BACKSLASH,)),
-        KeyChord((2,), (Keycode.SEMICOLON,)),
-        KeyChord((3,), (Keycode.GRAVE_ACCENT,)),
-        KeyChord((5,), (Keycode.SHIFT, Keycode.FORWARD_SLASH,)),
-        KeyChord((6,), (Keycode.MINUS,)),
-        KeyChord((7,), (Keycode.EQUALS,)),
+        KeyChord(kb, (0,), (Keycode.SHIFT, Keycode.ONE)),
+        KeyChord(kb, (1,), (Keycode.BACKSLASH,)),
+        KeyChord(kb, (2,), (Keycode.SEMICOLON,)),
+        KeyChord(kb, (3,), (Keycode.GRAVE_ACCENT,)),
+        KeyChord(kb, (5,), (Keycode.SHIFT, Keycode.FORWARD_SLASH,)),
+        KeyChord(kb, (6,), (Keycode.MINUS,)),
+        KeyChord(kb, (7,), (Keycode.EQUALS,)),
     ],
 
     #multimedialayer
     [
-        MultiChord((0,), (ConsumerControlCode.PLAY_PAUSE,)),
-        KeyChord((1,), (Keycode.INSERT,)),
-        MultiChord((2,), (ConsumerControlCode.VOLUME_INCREMENT,)),
-        KeyChord((4,), (Keycode.RIGHT_SHIFT,)),
-        KeyChord((5,), (Keycode.PRINT_SCREEN,)),
-        MultiChord((6,), (ConsumerControlCode.VOLUME_DECREMENT,)),
+        MultiChord(cc, (0,), (ConsumerControlCode.PLAY_PAUSE,)),
+        KeyChord(kb, (1,), (Keycode.INSERT,)),
+        MultiChord(cc, (2,), (ConsumerControlCode.VOLUME_INCREMENT,)),
+        KeyChord(kb, (4,), (Keycode.RIGHT_SHIFT,)),
+        KeyChord(kb, (5,), (Keycode.PRINT_SCREEN,)),
+        MultiChord(cc, (6,), (ConsumerControlCode.VOLUME_DECREMENT,)),
     ],
 
     #mouselayer
     [
-        MouseChord((0,), (Mouse.LEFT_BUTTON,)),
-        MouseMove((1,), (0, -20, 0)), #up
-        MouseChord((2,), (Mouse.RIGHT_BUTTON,)),
-        MouseMove((3,), (0, 0, 10)), #scroll away
-        MouseMove((4,), (-20, 0, 0)), #left
-        MouseMove((5,), (0, 20, 0)), #down
-        MouseMove((6,), (20, 0, 0)), #right
-        MouseMove((7,), (0, 0, -10)), #scroll toward
+        MouseChord(m, (0,), (Mouse.LEFT_BUTTON,)),
+        MouseMove(m, (1,), (0, -20, 0)), #up
+        MouseChord(m, (2,), (Mouse.RIGHT_BUTTON,)),
+        MouseMove(m, (3,), (0, 0, 10)), #scroll away
+        MouseMove(m, (4,), (-20, 0, 0)), #left
+        MouseMove(m, (5,), (0, 20, 0)), #down
+        MouseMove(m, (6,), (20, 0, 0)), #right
+        MouseMove(m, (7,), (0, 0, -10)), #scroll toward
     ],
 
     #navlayer
     [
-        KeyChord((0,), (Keycode.HOME,)),
-        KeyChord((1,), (Keycode.UP_ARROW,)),
-        KeyChord((2,), (Keycode.END,)),
-        KeyChord((3,), (Keycode.PAGE_UP,)),
-        KeyChord((4,), (Keycode.LEFT_ARROW,)),
-        KeyChord((5,), (Keycode.DOWN_ARROW,)),
-        KeyChord((6,), (Keycode.RIGHT_ARROW,)),
-        KeyChord((7,), (Keycode.PAGE_DOWN,)),
+        KeyChord(kb, (0,), (Keycode.HOME,)),
+        KeyChord(kb, (1,), (Keycode.UP_ARROW,)),
+        KeyChord(kb, (2,), (Keycode.END,)),
+        KeyChord(kb, (3,), (Keycode.PAGE_UP,)),
+        KeyChord(kb, (4,), (Keycode.LEFT_ARROW,)),
+        KeyChord(kb, (5,), (Keycode.DOWN_ARROW,)),
+        KeyChord(kb, (6,), (Keycode.RIGHT_ARROW,)),
+        KeyChord(kb, (7,), (Keycode.PAGE_DOWN,)),
     ],
 ]
 print("Doing final configuration...")
 mouselockchord = (0,2,5)
 navlockchord = (1,4,6)
-
-# The keyboard object!
-time.sleep(1)  # Sleep for a bit to avoid a race condition on some systems
-keyboard = Keyboard(usb_hid.devices)
-keyboard_layout = KeyboardLayoutUS(keyboard)
-consumer_control = ConsumerControl(usb_hid.devices)
-mouse = Mouse(usb_hid.devices)
 
 # Make all pin objects inputs with pullups
 switches = []
@@ -227,7 +185,6 @@ for pin in keypress_pins:
     key_pin.direction = digitalio.Direction.INPUT
     key_pin.pull = digitalio.Pull.UP
     switches.append(Debouncer(key_pin))
-
 
 chord = ()
 layer_hold_time = 0.25
